@@ -17,7 +17,7 @@
 <script>
 // Everything the real page gives the solver: a signed-in user, ten named fields,
 // and a Save button whose label is exactly "Save".
-localStorage.setItem("user", JSON.stringify({email:"24f2004141@ds.study.iitm.ac.in"}));
+localStorage.setItem("user", JSON.stringify({email:"24f2004141@ds.study.iitm.ac.in", quizSign:"fake-sign"}));
 localStorage.removeItem("ga8-solver-service-url");
 localStorage.removeItem("ga8-solver-hf-repo");
 
@@ -41,6 +41,13 @@ for (const [name,kind] of IDS) {
 // real grader scores that repo 2.5/2.5.
 const realFetch = window.fetch.bind(window);
 window.fetch = (url, opts) => {
+  if (String(url) === "/backendVerify") {
+    const b = JSON.parse(opts.body);
+    log("graded " + b.questionId.replace("q-","").slice(0,18) + " weight " + b.weight +
+        (b.response ? "" : "  <-- EMPTY RESPONSE"));
+    return Promise.resolve(new Response(JSON.stringify({ score: b.response ? b.weight : 0 }),
+      { status: 200, headers: { "Content-Type": "application/json" } }));
+  }
   if (String(url).endsWith("/carbon-repo")) {
     const card = JSON.parse(opts.body).card;
     log("publish called, card line 2: " + card.split(String.fromCharCode(10))[1]);

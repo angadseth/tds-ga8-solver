@@ -90,6 +90,15 @@ async function main() {
 
 /* ---------------------------------------------------------------- exam page */
 
+function isHfUrl(v) {
+  return HF_RE.test((v || "").trim());
+}
+
+function fieldValue(id) {
+  const f = document.querySelector(`[name="${CSS.escape(id)}"]`);
+  return (f && f.value) || "";
+}
+
 function readUser() {
   try {
     return JSON.parse(localStorage.getItem("user") || "null");
