@@ -158,6 +158,11 @@ function mountPanel() {
     .who { color:#7a8884; font-size:11.5px; }
     .score { margin-top:10px; text-align:center; font-size:22px; font-weight:700; color:#a3b1ad; }
     .score[data-full=yes] { color:#6fc9ad; }
+    .marks { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; justify-content:center; }
+    .mark { font-size:10.5px; padding:2px 6px; border-radius:4px;
+            background:#0d1211; border:1px solid #253130; color:#7a8884; }
+    .mark[data-ok=yes] { color:#6fc9ad; border-color:#2f4a42; }
+    .mark[data-ok=no]  { color:#e08a78; border-color:#4a2f2b; }
   `;
 
   const card = el("div", "card");
@@ -180,6 +185,47 @@ function mountPanel() {
 
 
 
+const WEIGHTS = [
+  ["q-immutable-training-corpus-server", "Q1", 1.5, false],
+  ["q-leakage-safe-bqml-server", "Q2", 1.5, false],
+  ["q-mlflow-evidence-promotion-server", "Q3", 1.25, false],
+  ["q-peft-repair-server", "Q4", 2, false],
+  ["q-quantized-model-admission-server", "Q5", 1.25, false],
+  ["q-content-addressed-pipeline-server", "Q6", 1.5, false],
+  ["q-verifiable-model-bundle-server", "Q7", 1, false],
+  ["q-lora-quant-budget-server", "Q8", 2, true],
+  ["q-mlflow-fingerprint-server", "Q9", 2.5, true],
+  ["q-modelcard-carbon-server", "Q10", 2.5, true],
+];
+
+const TOTAL = WEIGHTS.reduce((a, w) => a + w[2], 0);
+
+/** Ask the exam's own marker what each answer is worth. Same origin, and the
+ *  signature it needs is already in this page's storage, so this is the real
+ *  score rather than a guess at one. */
+async function gradeOne([id, , weight, versioned]) {
+  const user = readUser();
+  const body = {
+    email: user.email,
+    quizSign: user.quizSign,
+    response: fieldValue(id),
+    weight,
+    questionId: id,
+  };
+  if (versioned) body.version = "v1";
+  try {
+    const res = await fetch("/backendVerify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return typeof data.score === "number" ? data.score : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function saveRow(panel, say) {
   const row = el("div", "row");
 
@@ -190,62 +236,46 @@ function saveRow(panel, say) {
   go.style.fontSize = "13px";
   row.append(go);
 
-  const out = el("div", "score");
+  const out = el("div", "score", "");
   row.append(out);
+  const detail = el("div", "marks");
+  row.append(detail);
 
   go.onclick = async () => {
-    const button = [...document.querySelectorAll("button")]
-      .find((b) => /^\s*save\s*$/i.test(b.textContent || ""));
-    if (!button) return say("Could not find the page's Save button — press it yourself.", "warn");
-
     go.disabled = true;
     go.textContent = "Saving…";
-    out.textContent = "Grading all ten. This takes half a minute.";
-    button.click();
 
-    // The page writes the total into its own header once every question is back.
-    const score = await waitForScore();
+    const button = [...document.querySelectorAll("button")]
+      .find((b) => /^\s*save\s*$/i.test(b.textContent || ""));
+    if (button) button.click();
+
+    detail.textContent = "";
+    out.textContent = "0 / " + TOTAL;
+    let got = 0;
+
+    // Graded one at a time so the running total actually moves, and so ten
+    // gradings do not hit the single shared instance at once.
+    for (const q of WEIGHTS) {
+      const chip = el("span", "mark", q[1] + " …");
+      detail.append(chip);
+      const score = await gradeOne(q);
+      got += score;
+      chip.textContent = `${q[1]} ${round2(score)}`;
+      chip.dataset.ok = score >= q[2] ? "yes" : "no";
+      out.textContent = `${round2(got)} / ${TOTAL}`;
+      out.dataset.full = round2(got) === TOTAL ? "yes" : "no";
+    }
+
     go.disabled = false;
     go.textContent = "Save again";
-    if (score === null) {
-      out.textContent = "Saved. The page is still grading — watch the score at the top.";
-      return say("Saved.", "good");
-    }
-    out.textContent = score;
-    out.dataset.full = /^17\s*\/\s*17$/.test(score) ? "yes" : "no";
-    say(out.dataset.full === "yes" ? "Done." : "Saved — see the score.", "good");
+    say(round2(got) === TOTAL ? "Full marks, saved." : "Saved — see the breakdown.", "good");
   };
 
   return row;
 }
 
-/** Read the page's own total. Null if it never settles. */
-function waitForScore(timeoutMs = 90000) {
-  const read = () => {
-    const m = document.body.innerText.match(/Score:\s*([\d.]+)\s*\/\s*(\d+)/);
-    return m ? `${Number(m[1])} / ${m[2]}` : null;
-  };
-  const started = Date.now();
-  const first = read();
-  return new Promise((resolve) => {
-    const tick = () => {
-      const now = read();
-      if (now && now !== first && !/^0 \//.test(now)) return resolve(now);
-      if (Date.now() - started > timeoutMs) return resolve(now);
-      setTimeout(tick, 1200);
-    };
-    setTimeout(tick, 2500);
-  });
-}
-
-
-function isHfUrl(v) {
-  return HF_RE.test((v || "").trim());
-}
-
-function fieldValue(id) {
-  const f = document.querySelector(`[name="${CSS.escape(id)}"]`);
-  return (f && f.value) || "";
+function round2(n) {
+  return Math.round(n * 100) / 100;
 }
 
 /** Ask the service that answers Q1-Q7 to publish the card too. Returns a URL or null. */
