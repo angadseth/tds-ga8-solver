@@ -22,9 +22,11 @@ computation on the config it produces:
   a grader tolerance of 1e-3.
 - **Q10 — Carbon audit.** Energy and CO₂ from the exam's own TDP and grid-intensity tables, which
   do not always match the public datasheets. Using the real-world numbers gives a wrong answer.
-  Note that Q10's box takes a **Hugging Face repository URL**, not a value: the grader fetches
-  that repo's `README.md` and reads the `co2_eq_emissions` frontmatter. So the solver writes the
-  card for you and the repo is yours to create — the only step it cannot do on your behalf.
+  Q10's box takes a **Hugging Face repository URL**, not a value: the grader fetches that repo's
+  `README.md` and reads the `co2_eq_emissions` frontmatter, and it rejects every other host. The
+  hosted service publishes that card for you and hands back the URL, so this is automatic too;
+  a deployment with no Hugging Face account attached falls back to giving you the card to
+  publish yourself.
 
 All three are checked against answers the real grader has accepted before shipping.
 
