@@ -36,6 +36,8 @@ from _common import (
     round12,
     sha256_hex,
     sorted_unique_codes,
+    tenant_key,
+    evict_oldest as _evict,
     utf8_key,
 )
 
@@ -71,11 +73,12 @@ _STORE = {}
 
 
 def _store_get(freeze_id):
-    return _STORE.get(freeze_id)
+    return _STORE.get(tenant_key(freeze_id))
 
 
 def _store_put(freeze_id, freeze_input, response):
-    _STORE[freeze_id] = {"input": freeze_input, "response": response}
+    _STORE[tenant_key(freeze_id)] = {"input": freeze_input, "response": response}
+    _evict(_STORE)
 
 
 def _store_reset():

@@ -33,7 +33,7 @@
       <p>
         This page cannot press Save for you — a website is only allowed to act on its own site,
         which is what stops any page on the internet from touching your accounts. So the code runs
-        <em>on</em> the GA8 page instead. Two ways to get it there; the second needs no setup.
+        <em>on</em> the GA8 page instead — one paste fills all ten boxes. Two ways to get it there; the second needs no setup.
       </p>
     </div>
 
@@ -69,36 +69,28 @@
   </section>
 
   <section class="colophon">
-    <h2>Q1–Q7 are servers, and they have to be yours</h2>
+    <h2>Q1–Q7 are servers, not values</h2>
     <p>
-      Seven of the ten questions are not values at all. Each one grades a URL: the marker posts a
-      fixed set of requests to your endpoint and scores how it answers. No page can hand you that —
-      you have to run one.
+      Seven of the ten questions grade a URL: the marker posts a fixed set of requests to an
+      endpoint and scores how it answers. So this site runs one, and gives you its address on
+      <em>your own path</em> — the same URL for all seven boxes. Enter your email above and it
+      appears with the rest of your answers.
     </p>
     <p>
-      So this repo ships the code instead —
-      <a href="https://github.com/angadseth/tds-ga8-solver/tree/main/server"><code class="inline">server/</code></a>
-      holds all seven handlers, full marks on every one. One click deploys it and hands you your
-      own URL; paste that into the seven boxes.
+      The path matters more than it looks. Q2 remembers each <em>select</em>'s run so the
+      <em>evaluate</em> that follows can check the lineage against it, and Q5 remembers each
+      freeze so a replay with different input can refuse it. Put every student on one bare URL and
+      those memories collide the moment two people grade at once. Keyed by the email in the path,
+      they do not.
+    </p>
+    <p>
+      Prefer to run your own? <a href="https://github.com/angadseth/tds-ga8-solver/tree/main/server"><code class="inline">server/</code></a>
+      is the same code, one click to deploy, and the solver panel takes your URL instead.
     </p>
     <p class="deploy-cta">
       <a href="https://render.com/deploy?repo=https://github.com/angadseth/tds-ga8-solver">
         <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32">
       </a>
-    </p>
-    <p>
-      Free instances sleep after 15 minutes idle, and a sleeping one takes about 50 seconds to
-      wake — long enough for the first graded request to time out. Open
-      <code class="inline">your-url/healthz</code> and wait for <code class="inline">{"ok":true}</code>
-      right before you press Save, and the free plan is fine. Cloud Run with
-      <code class="inline">--min-instances=1</code> never sleeps at all.
-    </p>
-    <p>
-      Borrowing somebody else's URL does not work here, and not for etiquette reasons: Q2 and Q5
-      keep their state in memory, so a shared service that scales to a second instance loses the
-      lineage between a <em>select</em> and the <em>evaluate</em> that follows it. Marks then
-      disappear at random, with nothing in the message to explain why. One instance, yours,
-      is what makes it correct.
     </p>
     <dl class="facts">
       <dt>Q8 · LoRA budget</dt><dd>Rebuilds the PEFT adapter's safetensors layout byte for byte, so the file size is counted, not estimated.</dd>

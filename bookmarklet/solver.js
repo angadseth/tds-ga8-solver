@@ -11,7 +11,7 @@
  * whatever you submitted before, so it should be your decision, made after you
  * have looked at what got filled in.
  */
-import { solveEmail, QUESTION_IDS, SERVER_IDS } from "../assets/engine.js";
+import { solveEmail, serviceUrlFor, QUESTION_IDS, SERVER_IDS } from "../assets/engine.js";
 
 const PANEL_ID = "ga8-solver-panel";
 const URL_KEY = "ga8-solver-service-url";
@@ -48,11 +48,18 @@ async function main() {
     panel.body.append(answerRow(key.toUpperCase(), result[key], ok));
   }
 
+  // The seven server boxes take a URL, and the shared deployment answers for
+  // this student at their own path -- so fill them straight away rather than
+  // making them paste something first.
+  const stored = localStorage.getItem(URL_KEY);
+  const url = stored || serviceUrlFor(user.email);
+  for (const [id] of SERVER_IDS) if (setField(id, url)) filled++;
+
   say(
-    `${filled} of 3 derived answers filled for ${user.email}`,
-    filled === 3 ? "good" : "warn"
+    `${filled} of 10 answers filled for ${user.email}`,
+    filled === 10 ? "good" : "warn"
   );
-  panel.body.append(serviceRow(panel, say));
+  panel.body.append(serviceRow(panel, say, url, !stored));
   panel.body.append(saveRow(panel, say));
 }
 
@@ -154,15 +161,20 @@ function answerRow(label, entry, filled) {
   return row;
 }
 
-function serviceRow(panel, say) {
+function serviceRow(panel, say, current, isShared) {
   const row = el("div", "row");
-  row.append(el("h4", null, "Q1–Q7 · your own server URL"));
-  row.append(el("div", "kv", "These seven are graded by calling a server you deploy. Deploy the code in the repo's server/ folder, then paste your service URL here."));
+  const h = el("h4");
+  h.append(el("span", "tick", "✓"));
+  h.append(el("span", null, "Q1–Q7 · server URL"));
+  row.append(h);
+  row.append(el("div", "kv", isShared
+    ? "Filled with the shared deployment, on your own path so your grading state stays yours. Running your own copy instead? Paste its URL and press the button."
+    : "Filled with the URL you saved earlier."));
 
   const input = el("input");
   input.type = "url";
   input.placeholder = "https://your-service-xxxxx.run.app";
-  input.value = localStorage.getItem(URL_KEY) || "";
+  input.value = current || "";
   row.append(input);
 
   const go = el("button", "go", "Fill all seven");

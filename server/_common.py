@@ -106,3 +106,45 @@ def round12(x: float) -> float:
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 HEX8 = re.compile(r"^[0-9a-f]{8}$")
+
+
+# --------------------------------------------------------------------------
+# Tenant isolation.
+#
+# One deployment can serve many students if each one's stateful questions are
+# kept apart: Q2 remembers a select's runId so the evaluate that follows can
+# check lineage against it, and Q5 remembers a freeze so a differing replay can
+# return 409.  Those live in process memory, so two students grading at the same
+# time would otherwise collide on the same runId or freezeId.
+#
+# The tenant comes from the URL path (/ga8/<email>/...), is set per request, and
+# is prefixed onto every store key.  A ContextVar rather than a global because
+# FastAPI runs these handlers concurrently -- Starlette copies the request's
+# context into the worker thread, so each request reads back its own value.
+#
+# Empty tenant == a personal single-student deployment, which is exactly the
+# behaviour this service had before tenanting existed.
+# --------------------------------------------------------------------------
+from contextvars import ContextVar
+
+TENANT: ContextVar = ContextVar("tenant", default="")
+
+
+def tenant_key(key):
+    """Namespace a store key to the student whose URL is being graded."""
+    t = TENANT.get()
+    return key if not t else (t, key)
+
+
+# A shared deployment accumulates one entry per graded runId or freezeId across
+# every student, and nothing ever deletes them.  Cap the total and drop the
+# oldest first: a grading run only ever reads back keys it wrote seconds ago, so
+# eviction this far down the queue cannot affect a run in progress.
+STORE_MAX_ENTRIES = 50_000
+
+
+def evict_oldest(store, limit=STORE_MAX_ENTRIES):
+    if len(store) <= limit:
+        return
+    for key in list(store)[: len(store) - limit]:
+        store.pop(key, None)

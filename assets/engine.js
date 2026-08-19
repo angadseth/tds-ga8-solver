@@ -14,6 +14,21 @@ import { runQ9, makeRunId } from "./q9engine.js";
 
 const VERSION = "v1";
 
+// A hosted deployment of server/, shared by everyone, with each student's state
+// kept apart by the email in the path. Q1-Q7 are identical for every student, so
+// one service can answer for all of them -- what must not be shared is the
+// *state*: Q2 remembers a select's runId for the evaluate that follows, and Q5
+// remembers a freeze. The path namespaces exactly that.
+//
+// Deploying your own from server/ works the same way and is one click; this is
+// here so the seven boxes are answerable without waiting for a build.
+const SHARED_SERVICE = "https://tds-ga8-shared-172706022999.asia-south1.run.app";
+
+/** The URL that answers all seven server questions for this student. */
+export function serviceUrlFor(email) {
+  return SHARED_SERVICE + "/ga8/" + encodeURIComponent(email.trim().toLowerCase());
+}
+
 // Attention projections live under self_attn; everything else under mlp.
 const ATTN = new Set(["q_proj", "k_proj", "v_proj", "o_proj"]);
 
@@ -117,6 +132,7 @@ export function solveEmail(email) {
 
   return {
     email,
+    serviceUrl: serviceUrlFor(email),
     q8: {
       answer: {
         trainable_params: q8.trainable_params,

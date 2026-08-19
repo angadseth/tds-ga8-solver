@@ -7,6 +7,7 @@ Two phases:
   evaluate -> scores frozen-lineage test rows against aggregate/slice floors.
 """
 import json as _json
+import os as _os
 import sys as _sys
 
 from _common import (
@@ -19,6 +20,8 @@ from _common import (
     round12,
     sha256_hex,
     sorted_unique_codes,
+    tenant_key,
+    evict_oldest as _evict,
     utf8_key,
 )
 
@@ -31,11 +34,15 @@ _MEM = {}
 
 
 class _MemoryStore:
+    """Keys are namespaced per student, so two people grading at the same time
+    cannot collide on the same runId.  See tenant_key in _common."""
+
     def get(self, key):
-        return _MEM.get(key)
+        return _MEM.get(tenant_key(key))
 
     def put(self, key, value):
-        _MEM[key] = value
+        _MEM[tenant_key(key)] = value
+        _evict(_MEM)
 
 
 _store = _MemoryStore()
@@ -95,7 +102,14 @@ def _bad(status, code):
 _PROBE = [0]
 
 
+# Opt-in: a shared deployment serves every student's grading run, and printing
+# each one costs log volume for no benefit.  Set Q2_LOG=1 when debugging.
+_LOG_ON = _os.environ.get("Q2_LOG") == "1"
+
+
 def _log(body, status, resp):
+    if not _LOG_ON:
+        return
     _PROBE[0] += 1
     try:
         line = "PROBE#%d %s" % (

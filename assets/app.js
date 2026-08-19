@@ -92,11 +92,24 @@ function render(result) {
     results.append(card);
   }
 
-  // The other seven are endpoints, so say plainly that there is nothing to copy.
+  // The other seven take a URL rather than a value.
   const note = el("article", "ga8-card");
-  note.append(el("h3", "ga8-head", "Q1–Q7 · seven servers"));
+  const nh = el("h3", "ga8-head");
+  nh.append(el("span", "ga8-num", "Q1–Q7"));
+  nh.append(el("span", null, "one URL, all seven boxes"));
+  note.append(nh);
   note.append(el("p", "ga8-qid",
-    "Graded by calling a URL, so there is no value to derive. Deploy the code in this repo's server/ folder and paste the URL it gives you into these seven boxes."));
+    "These are graded by calling a server, so paste this into all seven. It is the shared deployment on your own path — Q2 and Q5 remember things between requests, and the path keeps your grading state separate from everyone else's."));
+  const svc = el("pre", "ga8-json", result.serviceUrl);
+  note.append(svc);
+  const scopy = el("button", "ga8-copy", "Copy URL");
+  scopy.type = "button";
+  scopy.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(result.serviceUrl);
+    scopy.textContent = "Copied";
+    setTimeout(() => (scopy.textContent = "Copy URL"), 1500);
+  });
+  note.append(scopy);
   const list = el("ul", "ga8-ids");
   for (const [id, label] of SERVER_IDS) {
     const li = el("li");
