@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>GA8 harness</title>
+<style>
+ body{background:#111;color:#ddd;font:13px ui-monospace,monospace;padding:16px}
+ input,textarea{width:100%;margin:2px 0 10px;background:#000;color:#6f6;border:1px solid #333;padding:5px;font:inherit}
+ label{color:#888;font-size:11px}
+ #log{white-space:pre-wrap;color:#fa0;border-top:1px solid #333;margin-top:14px;padding-top:10px}
+</style></head>
+<body>
+<h3>Fake GA8 page — same field names, same Save button</h3>
+<div id="fields"></div>
+<button id="save">Save</button>
+<span id="chip">Score: 0</span>
+<div id="log"></div>
+
+<script>
+// Everything the real page gives the solver: a signed-in user, ten named fields,
+// and a Save button whose label is exactly "Save".
+localStorage.setItem("user", JSON.stringify({email:"24f2004141@ds.study.iitm.ac.in"}));
+localStorage.removeItem("ga8-solver-service-url");
+localStorage.removeItem("ga8-solver-hf-repo");
+
+const IDS = [
+ ["q-immutable-training-corpus-server","url"],["q-leakage-safe-bqml-server","url"],
+ ["q-mlflow-evidence-promotion-server","url"],["q-peft-repair-server","url"],
+ ["q-quantized-model-admission-server","url"],["q-content-addressed-pipeline-server","url"],
+ ["q-verifiable-model-bundle-server","url"],["q-lora-quant-budget-server","textarea"],
+ ["q-mlflow-fingerprint-server","textarea"],["q-modelcard-carbon-server","url"],
+];
+const host = document.getElementById("fields");
+for (const [name,kind] of IDS) {
+  const l = document.createElement("label"); l.textContent = name; host.append(l);
+  const f = document.createElement(kind === "textarea" ? "textarea" : "input");
+  if (kind !== "textarea") f.type = "url";
+  f.name = name; host.append(f);
+}
+
+// The publish call is cross-origin (allowed only from the exam page), so stub it
+// here. The live endpoint is verified separately: it creates the repo and the
+// real grader scores that repo 2.5/2.5.
+const realFetch = window.fetch.bind(window);
+window.fetch = (url, opts) => {
+  if (String(url).endsWith("/carbon-repo")) {
+    const card = JSON.parse(opts.body).card;
+    log("publish called, card line 2: " + card.split(String.fromCharCode(10))[1]);
+    return Promise.resolve(new Response(
+      JSON.stringify({ url: "https://huggingface.co/bobtehbuilder/tds-ga8-carbon-d3baa6f5a2d7" }),
+      { status: 200, headers: { "Content-Type": "application/json" } }));
+  }
+  return realFetch(url, opts);
+};
+
+const log = (m) => { document.getElementById("log").textContent += m + "\n"; };
+window.addEventListener("error", e => log("PAGE ERROR: " + e.message));
+window.addEventListener("unhandledrejection", e => log("UNHANDLED REJECTION: " + (e.reason && e.reason.message || e.reason)));
+
+// The real page grades after Save; here just flip the chip so waitForScore has
+// something to observe.
+document.getElementById("save").onclick = () => {
+  log("Save pressed");
+  setTimeout(() => { document.getElementById("chip").textContent = "Score: 17 / 17"; log("page reports 17 / 17"); }, 4000);
+};
+
+window.report = () => {
+  const rows = IDS.map(([n]) => {
+    const f = document.querySelector(`[name="${CSS.escape(n)}"]`);
+    return [n.replace("q-",""), (f.value||"").slice(0,44) || "(EMPTY)"];
+  });
+  const empty = rows.filter(r => r[1] === "(EMPTY)").length;
+  return { filled: 10 - empty, empty, rows };
+};
+</script>
+</body>
+</html>

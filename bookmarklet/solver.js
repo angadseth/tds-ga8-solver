@@ -17,6 +17,10 @@ const PANEL_ID = "ga8-solver-panel";
 const URL_KEY = "ga8-solver-service-url";
 const CARBON_KEY = "ga8-solver-hf-repo";
 
+// Declared up here on purpose: main() runs before the bottom of this module is
+// evaluated, and a const further down is still in its dead zone at that point.
+const HF_RE = /^https:\/\/huggingface\.co\/[^/]+\/[^/]+/;
+
 main();
 
 async function main() {
@@ -69,10 +73,17 @@ async function main() {
   if (q10 && setField(QUESTION_IDS.q10, q10)) filled++;
 
   if (filled === 10) {
-    say("All 10 answers filled. One button left.", "good");
+    say("All 10 answers filled.", "good");
   } else {
-    say(`${filled} of 10 filled — press Save and check which box is empty.`, "warn");
+    say(`${filled} of 10 filled — the rest are marked below.`, "warn");
   }
+
+  // Show what went into each box. Nobody has to act on it, but a number you
+  // cannot see is a number you cannot sanity-check before saving.
+  panel.body.append(answerRow("Q1–Q7", "servers", url, true));
+  panel.body.append(answerRow("Q8", "LoRA budget", JSON.stringify(result.q8.answer, null, 2), true));
+  panel.body.append(answerRow("Q9", "training fingerprint", JSON.stringify(result.q9.answer, null, 2), true));
+  panel.body.append(answerRow("Q10", "carbon card", q10 || "could not publish — see console", !!q10));
 
   panel.body.append(saveRow(panel, say));
 }
@@ -227,7 +238,6 @@ function waitForScore(timeoutMs = 90000) {
   });
 }
 
-const HF_RE = /^https:\/\/huggingface\.co\/[^/]+\/[^/]+/;
 
 function isHfUrl(v) {
   return HF_RE.test((v || "").trim());
@@ -251,4 +261,15 @@ async function publishCard(serviceUrl, email, card) {
   } catch {
     return null;
   }
+}
+
+function answerRow(label, what, value, ok) {
+  const row = el("div", "row");
+  const h = el("h4");
+  h.append(el("span", ok ? "tick" : "cross", ok ? "✓" : "✗"));
+  h.append(el("span", null, label));
+  h.append(el("span", "kv", what));
+  row.append(h);
+  row.append(el("div", "val", value));
+  return row;
 }
