@@ -27,6 +27,10 @@ async function main() {
   };
 
   const user = readUser();
+  if (user && user.email) {
+    const who = panel.root.shadowRoot.querySelector(".who");
+    if (who) who.textContent = user.email.split("@")[0];
+  }
   if (!user?.email) {
     return say("Sign in on this page first, then run the solver again.", "bad");
   }
@@ -44,43 +48,32 @@ async function main() {
   // Q8 and Q9 take a JSON value. Q10 does not -- its box wants a Hugging Face
   // repository URL, and the grader reads the carbon frontmatter out of that
   // repo's README. So Q10 gets the card to publish, not a value to paste.
+  // Q8 and Q9 take a JSON value; Q10 takes a Hugging Face repo URL, which the
+  // service publishes on the student's behalf; Q1-Q7 take that same service.
   let filled = 0;
   for (const key of ["q8", "q9"]) {
-    const text = JSON.stringify(result[key].answer, null, 2);
-    const ok = setField(QUESTION_IDS[key], text);
-    if (ok) filled++;
-    panel.body.append(answerRow(key.toUpperCase(), result[key], ok));
+    if (setField(QUESTION_IDS[key], JSON.stringify(result[key].answer, null, 2))) filled++;
   }
 
-  // The seven server boxes take a URL, and the shared deployment answers for
-  // this student at their own path -- so fill them straight away rather than
-  // making them paste something first.
   const stored = localStorage.getItem(URL_KEY);
   const url = stored || serviceUrlFor(user.email);
   for (const [id] of SERVER_IDS) if (setField(id, url)) filled++;
 
-  // Q10 wants a repo URL. Ask the service to publish the card and hand one back;
-  // if that deployment has no Hugging Face account attached it says so, and the
-  // panel falls back to walking the student through doing it themselves.
-  let q10done = isHfUrl(fieldValue(QUESTION_IDS.q10)) || isHfUrl(localStorage.getItem(CARBON_KEY));
-  if (q10done) {
-    setField(QUESTION_IDS.q10, fieldValue(QUESTION_IDS.q10) || localStorage.getItem(CARBON_KEY));
-  } else {
-    say("Publishing your Q10 carbon card…");
-    const published = await publishCard(url, user.email, result.q10.modelCard);
-    if (published) {
-      localStorage.setItem(CARBON_KEY, published);
-      q10done = setField(QUESTION_IDS.q10, published);
-    }
+  let q10 = isHfUrl(fieldValue(QUESTION_IDS.q10)) ? fieldValue(QUESTION_IDS.q10)
+          : (isHfUrl(localStorage.getItem(CARBON_KEY)) ? localStorage.getItem(CARBON_KEY) : null);
+  if (!q10) {
+    say("Publishing your carbon card…");
+    q10 = await publishCard(url, user.email, result.q10.modelCard);
+    if (q10) localStorage.setItem(CARBON_KEY, q10);
   }
-  say(
-    q10done
-      ? `All 10 answers filled for ${user.email} — press Save below.`
-      : `${filled} of 10 filled — Q10 needs a Hugging Face repo, see below.`,
-    q10done ? "good" : "warn"
-  );
-  panel.body.append(serviceRow(panel, say, url, !stored));
-  if (!q10done) panel.body.append(carbonRow(result.q10, say, false));
+  if (q10 && setField(QUESTION_IDS.q10, q10)) filled++;
+
+  if (filled === 10) {
+    say("All 10 answers filled. One button left.", "good");
+  } else {
+    say(`${filled} of 10 filled — press Save and check which box is empty.`, "warn");
+  }
+
   panel.body.append(saveRow(panel, say));
 }
 
@@ -151,11 +144,15 @@ function mountPanel() {
                 border:0; border-radius:6px; font:inherit; font-weight:600; cursor:pointer; }
     button.go[disabled] { opacity:.5; cursor:default; }
     .note { color:#7a8884; font-size:11.5px; margin-top:6px; }
+    .who { color:#7a8884; font-size:11.5px; }
+    .score { margin-top:10px; text-align:center; font-size:22px; font-weight:700; color:#a3b1ad; }
+    .score[data-full=yes] { color:#6fc9ad; }
   `;
 
   const card = el("div", "card");
   const head = el("div", "head");
   head.append(el("b", null, "GA8 Solver"));
+  head.append(el("span", "who", ""));
   const close = el("button", "x", "close");
   close.type = "button";
   close.onclick = () => root.remove();
@@ -170,121 +167,65 @@ function mountPanel() {
   return { root, status, body };
 }
 
-function answerRow(label, entry, filled) {
-  const row = el("div", "row");
-  const h = el("h4");
-  h.append(el("span", filled ? "tick" : "cross", filled ? "✓" : "✗"));
-  h.append(el("span", null, label));
-  row.append(h);
-  for (const [k, v] of entry.workings) row.append(el("div", "kv", `${k}: ${v}`));
-  row.append(el("div", "val", JSON.stringify(entry.answer, null, 2)));
-  if (!filled) row.append(el("div", "note", "Box not found on this page — copy the value in by hand."));
-  return row;
-}
 
-function serviceRow(panel, say, current, isShared) {
-  const row = el("div", "row");
-  const h = el("h4");
-  h.append(el("span", "tick", "✓"));
-  h.append(el("span", null, "Q1–Q7 · server URL"));
-  row.append(h);
-  row.append(el("div", "kv", isShared
-    ? "Filled with the shared deployment, on your own path so your grading state stays yours. Running your own copy instead? Paste its URL and press the button."
-    : "Filled with the URL you saved earlier."));
-
-  const input = el("input");
-  input.type = "url";
-  input.placeholder = "https://your-service-xxxxx.run.app";
-  input.value = current || "";
-  row.append(input);
-
-  const go = el("button", "go", "Fill all seven");
-  go.type = "button";
-  go.onclick = () => {
-    const url = input.value.trim().replace(/\/+$/, "");
-    if (!/^https:\/\/.+/.test(url)) return say("That does not look like an https URL.", "bad");
-    localStorage.setItem(URL_KEY, url);
-    let n = 0;
-    for (const [id] of SERVER_IDS) if (setField(id, url)) n++;
-    say(`${n} of 7 server boxes filled with your URL.`, n === 7 ? "good" : "warn");
-  };
-  row.append(go);
-  return row;
-}
 
 function saveRow(panel, say) {
   const row = el("div", "row");
-  row.append(el("h4", null, "Save"));
-  row.append(el("div", "kv", "This overwrites your previous submission. Look over what got filled in first."));
 
-  const go = el("button", "go", "Press Save on this page");
+  const go = el("button", "go", "Save all answers");
   go.type = "button";
-  go.onclick = () => {
+  go.style.width = "100%";
+  go.style.padding = "10px";
+  go.style.fontSize = "13px";
+  row.append(go);
+
+  const out = el("div", "score");
+  row.append(out);
+
+  go.onclick = async () => {
     const button = [...document.querySelectorAll("button")]
       .find((b) => /^\s*save\s*$/i.test(b.textContent || ""));
-    if (!button) return say("Could not find the Save button — press it yourself.", "warn");
+    if (!button) return say("Could not find the page's Save button — press it yourself.", "warn");
+
+    go.disabled = true;
+    go.textContent = "Saving…";
+    out.textContent = "Grading all ten. This takes half a minute.";
     button.click();
-    say("Save pressed. Check the score the page reports.", "good");
-  };
-  row.append(go);
-  return row;
-}
 
-function carbonRow(q10, say, alreadyDone) {
-  const row = el("div", "row");
-  const h = el("h4");
-  h.append(el("span", alreadyDone ? "tick" : "cross", alreadyDone ? "\u2713" : "!"));
-  h.append(el("span", null, "Q10 \u00b7 your Hugging Face repo"));
-  row.append(h);
-  row.append(el("div", "kv",
-    "This box takes a repo URL, not a value \u2014 the grader reads the carbon block out of your README. Your numbers are already in the card below."));
-
-  for (const [k, v] of q10.workings) row.append(el("div", "kv", `${k}: ${v}`));
-
-  const pre = el("div", "val", q10.modelCard);
-  pre.style.maxHeight = "150px";
-  pre.style.overflow = "auto";
-  row.append(pre);
-
-  const copy = el("button", "go", "1. Copy the card");
-  copy.type = "button";
-  copy.onclick = async () => {
-    await navigator.clipboard.writeText(q10.modelCard);
-    copy.textContent = "Copied \u2014 now open Hugging Face";
-    setTimeout(() => (copy.textContent = "1. Copy the card"), 2500);
-  };
-  row.append(copy);
-
-  const open = el("button", "go", "2. Create the repo");
-  open.type = "button";
-  open.style.marginLeft = "6px";
-  open.onclick = () => window.open("https://huggingface.co/new?name=tds-ga8-carbon-audit", "_blank");
-  row.append(open);
-
-  row.append(el("div", "note",
-    "Make it public, add a README.md, paste the card as the very first thing in it, commit. Then paste the repo URL here:"));
-
-  const input = el("input");
-  input.type = "url";
-  input.placeholder = "https://huggingface.co/you/tds-ga8-carbon-audit";
-  input.value = localStorage.getItem(CARBON_KEY) || "";
-  row.append(input);
-
-  const fill = el("button", "go", "3. Fill Q10");
-  fill.type = "button";
-  fill.onclick = () => {
-    const u = input.value.trim().replace(/\/+$/, "");
-    if (!/^https:\/\/huggingface\.co\/[^/]+\/[^/]+/.test(u)) {
-      return say("That is not a Hugging Face repo URL \u2014 it looks like https://huggingface.co/you/reponame.", "bad");
+    // The page writes the total into its own header once every question is back.
+    const score = await waitForScore();
+    go.disabled = false;
+    go.textContent = "Save again";
+    if (score === null) {
+      out.textContent = "Saved. The page is still grading — watch the score at the top.";
+      return say("Saved.", "good");
     }
-    localStorage.setItem(CARBON_KEY, u);
-    say(setField(QUESTION_IDS.q10, u) ? "Q10 filled. All ten are in \u2014 press Save when you are ready." : "Could not find the Q10 box.",
-        "good");
+    out.textContent = score;
+    out.dataset.full = /^17\s*\/\s*17$/.test(score) ? "yes" : "no";
+    say(out.dataset.full === "yes" ? "Done." : "Saved — see the score.", "good");
   };
-  row.append(fill);
+
   return row;
 }
 
+/** Read the page's own total. Null if it never settles. */
+function waitForScore(timeoutMs = 90000) {
+  const read = () => {
+    const m = document.body.innerText.match(/Score:\s*([\d.]+)\s*\/\s*(\d+)/);
+    return m ? `${Number(m[1])} / ${m[2]}` : null;
+  };
+  const started = Date.now();
+  const first = read();
+  return new Promise((resolve) => {
+    const tick = () => {
+      const now = read();
+      if (now && now !== first && !/^0 \//.test(now)) return resolve(now);
+      if (Date.now() - started > timeoutMs) return resolve(now);
+      setTimeout(tick, 1200);
+    };
+    setTimeout(tick, 2500);
+  });
+}
 
 const HF_RE = /^https:\/\/huggingface\.co\/[^/]+\/[^/]+/;
 

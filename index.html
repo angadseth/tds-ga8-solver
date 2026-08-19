@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GA8 Solver — derived, not guessed</title>
-<meta name="description" content="Derives your GA8 Q8/Q9/Q10 answers from your email by running the exam's own question generator, in this tab, with the working shown — and hands you the server code for Q1–Q7.">
+<title>GA8 Solver — thirty seconds</title>
+<meta name="description" content="Copy one line into the console on the GA8 page. Every answer fills itself, one button saves them all.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#129517;</text></svg>">
 <link rel="stylesheet" href="./assets/style.css">
@@ -16,126 +16,53 @@
     <div class="brand">
       <h1 class="wordmark">GA8 <em>Solver</em></h1>
       <p class="byline">Angad Jangir <span>·</span> IITM BS Data Science</p>
-      <p class="tagline">A little help so the work goes faster — your Q8, Q9 and Q10 worked out by running the exam's own question generator, locally, in this tab, with the reasoning shown.</p>
+      <p class="tagline">One line, pasted once. Every answer works itself out on the exam page, one button saves them all, and your marks come straight back — about thirty seconds, start to finish.</p>
     </div>
-    <form id="run">
-      <input id="email" type="email" placeholder="your.roll@ds.study.iitm.ac.in" autocomplete="email" required>
-      <button class="go" type="submit">Solve</button>
-    </form>
-    <p id="status" data-kind="idle">Enter your IITM email to begin</p>
   </header>
 
-  <section id="results" hidden></section>
-
-  <section class="action" id="action">
-    <div class="action-head">
-      <h2>Save everything to the exam</h2>
-      <p>
-        This page cannot press Save for you — a website is only allowed to act on its own site,
-        which is what stops any page on the internet from touching your accounts. So the code runs
-        <em>on</em> the GA8 page instead — one paste fills nine of the ten boxes and hands you what Q10 needs. Two ways to get it there; the second needs no setup.
-      </p>
+  <section class="solo">
+    <div class="solo-code">
+      <code id="console-src">loading…</code>
+      <button class="go" id="copy-console" type="button">Copy the script</button>
     </div>
 
-    <div class="ways">
-      <article class="way">
-        <h3><span class="way-n">A</span> As a bookmark <em>— set up once, one click after that</em></h3>
-        <ol>
-          <li>Open your bookmark manager (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>) and add a new bookmark.</li>
-          <li>Name it anything; paste the line below as the <strong>URL</strong>.</li>
-          <li>Open the GA8 exam page, then click that bookmark.</li>
-        </ol>
-        <div class="action-code">
-          <code id="bookmarklet-src">loading…</code>
-          <button class="go" id="copy-bookmarklet" type="button">Copy</button>
-        </div>
-      </article>
-
-      <article class="way">
-        <h3><span class="way-n">B</span> In the console <em>— nothing to set up, paste each time</em></h3>
-        <ol>
-          <li>Open the GA8 exam page and press <kbd>F12</kbd>.</li>
-          <li>Go to the <strong>Console</strong> tab.</li>
-          <li>Chrome blocks pasting there the first time — if it warns you, type
-            <code class="inline">allow pasting</code> and press Enter.</li>
-          <li>Paste the line below, press <kbd>Enter</kbd>, and close the panel with <kbd>F12</kbd>.</li>
-        </ol>
-        <div class="action-code">
-          <code id="console-src">loading…</code>
-          <button class="go" id="copy-console" type="button">Copy</button>
-        </div>
-      </article>
-    </div>
+    <ol class="solo-steps">
+      <li>Copy the line above.</li>
+      <li>Open the <strong>GA8 exam page</strong>, press <kbd>F12</kbd>, go to the <strong>Console</strong> tab.
+        <span class="muted">Chrome blocks pasting there the first time — if it warns you, type <code class="inline">allow pasting</code> and press Enter.</span></li>
+      <li>Paste it, press <kbd>Enter</kbd>, close the panel with <kbd>F12</kbd>.</li>
+      <li>Every answer fills itself in. Press <strong>Save all answers</strong> and your score appears.</li>
+    </ol>
   </section>
 
-  <section class="colophon">
-    <h2>Q1–Q7 are servers, not values</h2>
+  <footer class="colophon">
     <p>
-      Seven of the ten questions grade a URL: the marker posts a fixed set of requests to an
-      endpoint and scores how it answers. So this site runs one, and gives you its address on
-      <em>your own path</em> — the same URL for all seven boxes. Enter your email above and it
-      appears with the rest of your answers.
+      <a href="https://github.com/angadseth">Angad Jangir</a> ·
+      <a href="https://www.linkedin.com/in/angad-jangir-23306231b/">LinkedIn</a> ·
+      <a href="https://github.com/angadseth/tds-ga8-solver">source</a> ·
+      <a href="https://angadseth.github.io/tds-ga7-solver/">GA7 solver</a>
     </p>
-    <p>
-      The path matters more than it looks. Q2 remembers each <em>select</em>'s run so the
-      <em>evaluate</em> that follows can check the lineage against it, and Q5 remembers each
-      freeze so a replay with different input can refuse it. Put every student on one bare URL and
-      those memories collide the moment two people grade at once. Keyed by the email in the path,
-      they do not.
-    </p>
-    <p>
-      Prefer to run your own? <a href="https://github.com/angadseth/tds-ga8-solver/tree/main/server"><code class="inline">server/</code></a>
-      is the same code, one click to deploy, and the solver panel takes your URL instead.
-    </p>
-    <p class="deploy-cta">
-      <a href="https://render.com/deploy?repo=https://github.com/angadseth/tds-ga8-solver">
-        <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32">
-      </a>
-    </p>
-    <dl class="facts">
-      <dt>Q8 · LoRA budget</dt><dd>Rebuilds the PEFT adapter's safetensors layout byte for byte, so the file size is counted, not estimated.</dd>
-      <dt>Q9 · Training fingerprint</dt><dd>Replays the whole training loop in float64 — SGD, AdamW or RMSprop, whichever your seed picked, on a cosine or step schedule.</dd>
-      <dt>Q10 · Carbon audit</dt><dd>Energy and CO₂ from the exam's own TDP and grid-intensity tables, not from public datasheets — written into a model card ready to publish. This one box takes a Hugging Face repo URL rather than a value, so the repo has to be yours: about a minute of work, and the card is already written.</dd>
-    </dl>
     <p class="colophon-note">
       Independent student project. Not affiliated with, endorsed by, or representing IIT Madras or
       the TDS course team. Built for the graded assignments, whose instructions permit any help you
       can find; not for the proctored exams, where it must not be used.
     </p>
-  </section>
-
-  <footer class="colophon">
-    <p>
-      Built by <a href="https://github.com/angadseth">Angad Jangir</a> ·
-      <a href="https://www.linkedin.com/in/angad-jangir-23306231b/">LinkedIn</a> ·
-      <a href="https://github.com/angadseth/tds-ga8-solver">source</a> ·
-      <a href="https://angadseth.github.io/tds-ga7-solver/">GA7 solver</a>
-    </p>
   </footer>
 
 </div>
 
-<script type="module" src="./assets/app.js"></script>
 <script>
-  // Build the bookmarklet against wherever this page is actually hosted.
+  // Built against wherever this page is hosted, so a fork keeps working.
   const loader = new URL("./bookmarklet/solver.js", location.href).href;
-  const code = `javascript:(function(){var s=document.createElement('script');s.type='module';s.src='${loader}?'+Date.now();document.body.appendChild(s);})()`;
-  document.getElementById("bookmarklet-src").textContent = code;
-
-  // The console wants the plain statement; a bookmark URL wants the javascript: form.
   const consoleCode = `import('${loader}?'+Date.now())`;
   document.getElementById("console-src").textContent = consoleCode;
 
-  const wire = (id, text) => {
-    const button = document.getElementById(id);
-    button.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(text);
-      button.textContent = "Copied";
-      setTimeout(() => (button.textContent = "Copy"), 1500);
-    });
-  };
-  wire("copy-bookmarklet", code);
-  wire("copy-console", consoleCode);
+  const button = document.getElementById("copy-console");
+  button.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(consoleCode);
+    button.textContent = "Copied — now open the exam page";
+    setTimeout(() => (button.textContent = "Copy the script"), 2500);
+  });
 </script>
 </body>
 </html>
