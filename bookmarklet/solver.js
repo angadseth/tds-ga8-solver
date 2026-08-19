@@ -59,16 +59,28 @@ async function main() {
   const url = stored || serviceUrlFor(user.email);
   for (const [id] of SERVER_IDS) if (setField(id, url)) filled++;
 
-  const q10done = /^https:\/\/huggingface\.co\/[^/]+\/[^/]+/.test(
-    (document.querySelector(`[name="${CSS.escape(QUESTION_IDS.q10)}"]`) || {}).value || ""
-  );
+  // Q10 wants a repo URL. Ask the service to publish the card and hand one back;
+  // if that deployment has no Hugging Face account attached it says so, and the
+  // panel falls back to walking the student through doing it themselves.
+  let q10done = isHfUrl(fieldValue(QUESTION_IDS.q10)) || isHfUrl(localStorage.getItem(CARBON_KEY));
+  if (q10done) {
+    setField(QUESTION_IDS.q10, fieldValue(QUESTION_IDS.q10) || localStorage.getItem(CARBON_KEY));
+  } else {
+    say("Publishing your Q10 carbon card…");
+    const published = await publishCard(url, user.email, result.q10.modelCard);
+    if (published) {
+      localStorage.setItem(CARBON_KEY, published);
+      q10done = setField(QUESTION_IDS.q10, published);
+    }
+  }
   say(
-    `${filled} of 9 auto-filled for ${user.email}` +
-      (q10done ? " — Q10 already has your repo." : " — Q10 needs your Hugging Face repo, below."),
-    filled === 9 && q10done ? "good" : "warn"
+    q10done
+      ? `All 10 answers filled for ${user.email} — press Save below.`
+      : `${filled} of 10 filled — Q10 needs a Hugging Face repo, see below.`,
+    q10done ? "good" : "warn"
   );
   panel.body.append(serviceRow(panel, say, url, !stored));
-  panel.body.append(carbonRow(result.q10, say, q10done));
+  if (!q10done) panel.body.append(carbonRow(result.q10, say, false));
   panel.body.append(saveRow(panel, say));
 }
 
@@ -271,4 +283,31 @@ function carbonRow(q10, say, alreadyDone) {
   };
   row.append(fill);
   return row;
+}
+
+
+const HF_RE = /^https:\/\/huggingface\.co\/[^/]+\/[^/]+/;
+
+function isHfUrl(v) {
+  return HF_RE.test((v || "").trim());
+}
+
+function fieldValue(id) {
+  const f = document.querySelector(`[name="${CSS.escape(id)}"]`);
+  return (f && f.value) || "";
+}
+
+/** Ask the service that answers Q1-Q7 to publish the card too. Returns a URL or null. */
+async function publishCard(serviceUrl, email, card) {
+  try {
+    const res = await fetch(serviceUrl.replace(/\/+$/, "") + "/carbon-repo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ card }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && isHfUrl(data.url) ? data.url : null;
+  } catch {
+    return null;
+  }
 }

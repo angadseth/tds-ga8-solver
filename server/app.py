@@ -17,10 +17,23 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from _common import TENANT
+import carbon
 
 import q1_corpus, q2_bqml, q3_promote, q4_adapt, q5_quantize, q6_pipeline, q7_bundle
 
 app = FastAPI(title="TDS GA8 Service")
+
+# The seven graded endpoints are called server-side by the marker, which does not
+# need CORS. The carbon-repo endpoint is called from the exam page in the
+# student's browser, which does.
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://exam.sanand.workers.dev"],
+    allow_methods=["POST", "GET"],
+    allow_headers=["Content-Type"],
+)
 
 ROUTES = {
     "/build-corpus": q1_corpus.handle,
@@ -77,6 +90,26 @@ for _p in list(ROUTES):
     _own_h, _shared_h = _make(_p)
     app.post(_p)(_own_h)
     app.post("/ga8/{email}" + _p)(_shared_h)
+
+
+@app.post("/ga8/{email}/carbon-repo")
+async def carbon_repo(email: str, request: Request):
+    """Publish this student's Q10 model card and hand back the repo URL.
+
+    The card is computed in the browser (the generator is JavaScript), so it
+    arrives in the body rather than being derived here.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "INVALID_INPUT"})
+    status, payload = carbon.publish(_tenant(email), (body or {}).get("card"))
+    return JSONResponse(status_code=status, content=payload)
+
+
+@app.get("/ga8/{email}/carbon-repo")
+async def carbon_repo_status(email: str):
+    return {"configured": carbon.configured()}
 
 
 @app.get("/ga8/{email}")
