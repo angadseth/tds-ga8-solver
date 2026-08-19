@@ -25,25 +25,48 @@ uvicorn app:app --reload --port 8000
 curl localhost:8000/          # lists the seven routes
 ```
 
-## Deploy it
+## Deploy it — one click
 
-The service is a plain FastAPI app, so anywhere that runs Python will do. Cloud Run needs no
-Dockerfile — it builds from the source directly:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/angadseth/tds-ga8-solver)
+
+Sign in with GitHub, press Apply, wait about two minutes. Render prints a URL like
+`https://tds-ga8-xxxx.onrender.com`. **That URL is your answer to all seven questions** — paste
+it into each of the seven boxes, or let the solver panel fill them for you.
+
+> **Free instances sleep after 15 minutes idle.** A sleeping service takes ~50 s to wake, which
+> is long enough for the first graded request to time out. Open `https://your-url/healthz` in a
+> tab and wait for `{"ok":true}` **immediately before** you press Save on the exam. Do that and
+> the free plan is fine.
+
+### Or Cloud Run, if you have a Google account
+
+No Dockerfile needed — it builds from source:
 
 ```bash
-gcloud run deploy tds-ga8 --source . \
-  --region asia-south1 --allow-unauthenticated --min-instances=1
+gcloud run deploy tds-ga8 --source . \n  --region asia-south1 --allow-unauthenticated \n  --min-instances=1 --max-instances=1
 ```
 
-The command prints a URL. **That URL is your answer to all seven questions** — paste it into
-each of the seven boxes, or let the solver's panel fill them for you.
+Never sleeps, so there is nothing to wake. `--min-instances=1` keeps it warm.
 
-`--min-instances=1` keeps one instance warm. Without it the first request of each grading run
-pays cold-start and can time out.
+### Or anywhere else
 
-If you would rather not use Cloud Run: Render, Fly.io and Railway all deploy this unchanged, and
-`ngrok http 8000` in front of a local `uvicorn` works too, as long as the tunnel stays up for the
-whole grading run.
+There is a `Dockerfile`, so Fly.io, Railway, Koyeb and plain Docker all work unchanged.
+`ngrok http 8000` in front of a local `uvicorn` works too, as long as the tunnel stays up for
+the whole grading run.
+
+## Why you cannot just borrow somebody else's URL
+
+Three of these questions keep state in memory: Q2 stores each `runId` from the *select* call so
+the *evaluate* call that follows can check the lineage against it, and Q5 stores each freeze so a
+replay with different input can return 409. Both are `dict`s living inside one process.
+
+Point a hundred students at one shared service and it scales to several instances. The grader's
+`select` lands on one, its `evaluate` on another, the lookup misses, and the answer comes back
+`INVALID_LINEAGE`. Marks vanish unpredictably — some runs full, some not, with nothing in the
+message to explain it. Cap it at one instance instead and everyone queues behind a single
+process until requests time out.
+
+**`--max-instances=1` is what makes this correct, and it only works when the service is yours.**
 
 ## Things that cost marks, learned the hard way
 

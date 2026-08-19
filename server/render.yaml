@@ -1,0 +1,14 @@
+# One-click blueprint: Render reads this, builds the service, and hands you a URL.
+services:
+  - type: web
+    name: tds-ga8
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    # The graded questions keep their state in memory (a select must be visible to
+    # the evaluate that follows it), so the service must never run as more than one
+    # instance. Free plan is single-instance by definition; do not raise it.
+    numInstances: 1
+    autoDeploy: false

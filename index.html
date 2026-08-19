@@ -76,10 +76,29 @@
       you have to run one.
     </p>
     <p>
-      So this repo ships the code instead. <a href="https://github.com/angadseth/tds-ga8-solver/tree/main/server"><code class="inline">server/</code></a>
-      holds all seven handlers, scoring full marks on every one, plus a README with the deploy
-      command. Deploy it, and the URL that comes back is yours — paste it into the seven boxes
-      and it is your own service being graded, on your own account.
+      So this repo ships the code instead —
+      <a href="https://github.com/angadseth/tds-ga8-solver/tree/main/server"><code class="inline">server/</code></a>
+      holds all seven handlers, full marks on every one. One click deploys it and hands you your
+      own URL; paste that into the seven boxes.
+    </p>
+    <p class="deploy-cta">
+      <a href="https://render.com/deploy?repo=https://github.com/angadseth/tds-ga8-solver">
+        <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="32">
+      </a>
+    </p>
+    <p>
+      Free instances sleep after 15 minutes idle, and a sleeping one takes about 50 seconds to
+      wake — long enough for the first graded request to time out. Open
+      <code class="inline">your-url/healthz</code> and wait for <code class="inline">{"ok":true}</code>
+      right before you press Save, and the free plan is fine. Cloud Run with
+      <code class="inline">--min-instances=1</code> never sleeps at all.
+    </p>
+    <p>
+      Borrowing somebody else's URL does not work here, and not for etiquette reasons: Q2 and Q5
+      keep their state in memory, so a shared service that scales to a second instance loses the
+      lineage between a <em>select</em> and the <em>evaluate</em> that follows it. Marks then
+      disappear at random, with nothing in the message to explain why. One instance, yours,
+      is what makes it correct.
     </p>
     <dl class="facts">
       <dt>Q8 · LoRA budget</dt><dd>Rebuilds the PEFT adapter's safetensors layout byte for byte, so the file size is counted, not estimated.</dd>
