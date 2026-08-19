@@ -15,6 +15,7 @@ import { solveEmail, serviceUrlFor, QUESTION_IDS, SERVER_IDS } from "../assets/e
 
 const PANEL_ID = "ga8-solver-panel";
 const URL_KEY = "ga8-solver-service-url";
+const CARBON_KEY = "ga8-solver-hf-repo";
 
 main();
 
@@ -40,8 +41,11 @@ async function main() {
     return say(`Could not derive your answers: ${error.message}`, "bad");
   }
 
+  // Q8 and Q9 take a JSON value. Q10 does not -- its box wants a Hugging Face
+  // repository URL, and the grader reads the carbon frontmatter out of that
+  // repo's README. So Q10 gets the card to publish, not a value to paste.
   let filled = 0;
-  for (const key of ["q8", "q9", "q10"]) {
+  for (const key of ["q8", "q9"]) {
     const text = JSON.stringify(result[key].answer, null, 2);
     const ok = setField(QUESTION_IDS[key], text);
     if (ok) filled++;
@@ -55,11 +59,16 @@ async function main() {
   const url = stored || serviceUrlFor(user.email);
   for (const [id] of SERVER_IDS) if (setField(id, url)) filled++;
 
+  const q10done = /^https:\/\/huggingface\.co\/[^/]+\/[^/]+/.test(
+    (document.querySelector(`[name="${CSS.escape(QUESTION_IDS.q10)}"]`) || {}).value || ""
+  );
   say(
-    `${filled} of 10 answers filled for ${user.email}`,
-    filled === 10 ? "good" : "warn"
+    `${filled} of 9 auto-filled for ${user.email}` +
+      (q10done ? " — Q10 already has your repo." : " — Q10 needs your Hugging Face repo, below."),
+    filled === 9 && q10done ? "good" : "warn"
   );
   panel.body.append(serviceRow(panel, say, url, !stored));
+  panel.body.append(carbonRow(result.q10, say, q10done));
   panel.body.append(saveRow(panel, say));
 }
 
@@ -206,5 +215,60 @@ function saveRow(panel, say) {
     say("Save pressed. Check the score the page reports.", "good");
   };
   row.append(go);
+  return row;
+}
+
+function carbonRow(q10, say, alreadyDone) {
+  const row = el("div", "row");
+  const h = el("h4");
+  h.append(el("span", alreadyDone ? "tick" : "cross", alreadyDone ? "\u2713" : "!"));
+  h.append(el("span", null, "Q10 \u00b7 your Hugging Face repo"));
+  row.append(h);
+  row.append(el("div", "kv",
+    "This box takes a repo URL, not a value \u2014 the grader reads the carbon block out of your README. Your numbers are already in the card below."));
+
+  for (const [k, v] of q10.workings) row.append(el("div", "kv", `${k}: ${v}`));
+
+  const pre = el("div", "val", q10.modelCard);
+  pre.style.maxHeight = "150px";
+  pre.style.overflow = "auto";
+  row.append(pre);
+
+  const copy = el("button", "go", "1. Copy the card");
+  copy.type = "button";
+  copy.onclick = async () => {
+    await navigator.clipboard.writeText(q10.modelCard);
+    copy.textContent = "Copied \u2014 now open Hugging Face";
+    setTimeout(() => (copy.textContent = "1. Copy the card"), 2500);
+  };
+  row.append(copy);
+
+  const open = el("button", "go", "2. Create the repo");
+  open.type = "button";
+  open.style.marginLeft = "6px";
+  open.onclick = () => window.open("https://huggingface.co/new?name=tds-ga8-carbon-audit", "_blank");
+  row.append(open);
+
+  row.append(el("div", "note",
+    "Make it public, add a README.md, paste the card as the very first thing in it, commit. Then paste the repo URL here:"));
+
+  const input = el("input");
+  input.type = "url";
+  input.placeholder = "https://huggingface.co/you/tds-ga8-carbon-audit";
+  input.value = localStorage.getItem(CARBON_KEY) || "";
+  row.append(input);
+
+  const fill = el("button", "go", "3. Fill Q10");
+  fill.type = "button";
+  fill.onclick = () => {
+    const u = input.value.trim().replace(/\/+$/, "");
+    if (!/^https:\/\/huggingface\.co\/[^/]+\/[^/]+/.test(u)) {
+      return say("That is not a Hugging Face repo URL \u2014 it looks like https://huggingface.co/you/reponame.", "bad");
+    }
+    localStorage.setItem(CARBON_KEY, u);
+    say(setField(QUESTION_IDS.q10, u) ? "Q10 filled. All ten are in \u2014 press Save when you are ready." : "Could not find the Q10 box.",
+        "good");
+  };
+  row.append(fill);
   return row;
 }

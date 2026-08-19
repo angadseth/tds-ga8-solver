@@ -116,6 +116,35 @@ export function solveQ10(carbon) {
   };
 }
 
+/** The README.md the grader reads. Emissions are rounded to three decimals,
+ *  which is what the question specifies. */
+export function buildModelCard(q10) {
+  return `---
+co2_eq_emissions:
+  emissions: ${q10.co2_kg}
+  source: codecarbon
+  training_type: ${q10.training_type}
+  geographical_location: ${q10.region}
+  hardware_used: ${q10.gpu_type}
+---
+
+# TDS GA8 — Green AI Carbon Accounting
+
+| Field | Value |
+|---|---|
+| Hardware | ${q10.gpu_type} (${q10.tdp_watts} W TDP) |
+| GPUs | ${q10.num_gpus} |
+| GPU hours | ${q10.gpu_hours} |
+| PUE | ${q10.pue} |
+| Region | ${q10.region} (${q10.grid_gco2_per_kwh} gCO2eq/kWh) |
+| Energy | ${q10.energy_kwh} kWh |
+| Emissions | ${q10.co2_kg} kg CO2eq |
+
+energy_kWh = TDP x GPUs x hours x PUE / 1000
+co2_kg = energy_kWh x grid_intensity / 1000
+`;
+}
+
 /** Everything derivable from one email, plus the workings behind each number. */
 export function solveEmail(email) {
   BUNDLE.initLora();
@@ -156,8 +185,14 @@ export function solveEmail(email) {
         ["weight decay", String(mlflow.hyperparameters.weight_decay)],
       ],
     },
+    // Q10's box takes a Hugging Face repository URL, not a value. The grader
+    // fetches that repo's README.md and reads the co2_eq_emissions frontmatter,
+    // so what this can produce is the card -- the repo has to be the student's
+    // own, under their own account.
     q10: {
-      answer: {
+      needsRepo: true,
+      modelCard: buildModelCard(q10),
+      computed: {
         energy_kwh: q10.energy_kwh,
         co2_kg: q10.co2_kg,
         training_type: q10.training_type,

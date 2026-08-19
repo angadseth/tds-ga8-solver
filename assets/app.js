@@ -58,7 +58,7 @@ function render(result) {
   results.textContent = "";
   results.append(el("h2", "ga8-h", `Your answers · ${result.email}`));
 
-  for (const key of ["q8", "q9", "q10"]) {
+  for (const key of ["q8", "q9"]) {
     const [num, title, questionId] = TITLES[key];
     const entry = result[key];
     const card = el("article", "ga8-card");
@@ -90,6 +90,38 @@ function render(result) {
     });
     card.append(copy);
     results.append(card);
+  }
+
+  // Q10 is a repo, not a value.
+  {
+    const c = el("article", "ga8-card");
+    const ch = el("h3", "ga8-head");
+    ch.append(el("span", "ga8-num", "Q10"));
+    ch.append(el("span", null, "carbon audit — needs your own repo"));
+    c.append(ch);
+    c.append(el("p", "ga8-qid",
+      "This box takes a Hugging Face repository URL. The grader fetches that repo's README.md and reads the co2_eq_emissions block, so the repo has to be yours. Your numbers are already in the card below — create a public repo, paste this as the top of README.md, commit, and submit the repo URL."));
+    const w = el("ul", "ga8-works");
+    for (const [k, v] of result.q10.workings) {
+      const li = el("li"); li.append(el("b", null, k)); li.append(el("span", null, v)); w.append(li);
+    }
+    c.append(w);
+    c.append(el("pre", "ga8-json", result.q10.modelCard));
+    const cc = el("button", "ga8-copy", "Copy model card");
+    cc.type = "button";
+    cc.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(result.q10.modelCard);
+      cc.textContent = "Copied";
+      setTimeout(() => (cc.textContent = "Copy model card"), 1500);
+    });
+    c.append(cc);
+    const mk = el("a", "ga8-copy", "Create the repo →");
+    mk.href = "https://huggingface.co/new?name=tds-ga8-carbon-audit";
+    mk.target = "_blank";
+    mk.rel = "noopener";
+    mk.style.marginLeft = "0.5rem";
+    c.append(mk);
+    results.append(c);
   }
 
   // The other seven take a URL rather than a value.
