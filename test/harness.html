@@ -6,20 +6,47 @@
  input,textarea{width:100%;margin:2px 0 10px;background:#000;color:#6f6;border:1px solid #333;padding:5px;font:inherit}
  label{color:#888;font-size:11px}
  #log{white-space:pre-wrap;color:#fa0;border-top:1px solid #333;margin-top:14px;padding-top:10px}
+ nav a{color:#6cf;margin-right:10px}
+ nav a.on{color:#6f6;font-weight:700}
 </style></head>
 <body>
 <h3>Fake GA8 page — same field names, same Save button</h3>
+<nav id="scenarios"></nav>
 <div id="fields"></div>
 <button id="save">Save</button>
 <span id="chip">Score: 0</span>
 <div id="log"></div>
 
 <script>
+// The states that actually broke Q10 in the wild. `clean` is the happy path; the
+// rest are the ones nobody was testing, because the harness used to wipe exactly
+// the storage keys that caused them.
+//
+//   stale-url     a service URL pasted into an older panel. It answers Q1-Q7 but
+//                 has no Hugging Face account, so the publish went there and 503'd.
+//   foreign-repo  the un-namespaced repo cache, holding another student's repo.
+//   prefilled     the exam page handing back a repo URL saved on an earlier visit.
+//   publish-down  the publish endpoint failing, to see what the student is told.
+const SCENARIO = new URLSearchParams(location.search).get("scenario") || "clean";
+const OTHER_REPO = "https://huggingface.co/bobtehbuilder/tds-ga8-carbon-000000000000";
+const MY_REPO = "https://huggingface.co/bobtehbuilder/tds-ga8-carbon-d3baa6f5a2d7";
+
+const nav = document.getElementById("scenarios");
+for (const s of ["clean", "stale-url", "foreign-repo", "prefilled", "publish-down"]) {
+  const a = document.createElement("a");
+  a.href = "?scenario=" + s; a.textContent = s;
+  if (s === SCENARIO) a.className = "on";
+  nav.append(a);
+}
+
 // Everything the real page gives the solver: a signed-in user, ten named fields,
 // and a Save button whose label is exactly "Save".
 localStorage.setItem("user", JSON.stringify({email:"24f2004141@ds.study.iitm.ac.in", quizSign:"fake-sign"}));
 localStorage.removeItem("ga8-solver-service-url");
 localStorage.removeItem("ga8-solver-hf-repo");
+localStorage.removeItem("ga8-solver-hf-repo:24f2004141@ds.study.iitm.ac.in");
+if (SCENARIO === "stale-url") localStorage.setItem("ga8-solver-service-url", "https://my-own-render-deploy.onrender.com");
+if (SCENARIO === "foreign-repo") localStorage.setItem("ga8-solver-hf-repo", OTHER_REPO);
 
 const IDS = [
  ["q-immutable-training-corpus-server","url"],["q-leakage-safe-bqml-server","url"],
@@ -35,32 +62,58 @@ for (const [name,kind] of IDS) {
   if (kind !== "textarea") f.type = "url";
   f.name = name; host.append(f);
 }
+// The real page pre-fills a box with whatever you saved last time.
+if (SCENARIO === "prefilled") document.querySelector('[name="q-modelcard-carbon-server"]').value = OTHER_REPO;
 
 // The publish call is cross-origin (allowed only from the exam page), so stub it
 // here. The live endpoint is verified separately: it creates the repo and the
 // real grader scores that repo 2.5/2.5.
 const realFetch = window.fetch.bind(window);
 window.fetch = (url, opts) => {
-  if (String(url) === "/backendVerify") {
+  url = String(url);
+
+  if (url === "/backendVerify") {
     const b = JSON.parse(opts.body);
+    const q10 = b.questionId === "q-modelcard-carbon-server";
+    // The real marker fetches that repo and checks the emissions against this
+    // student's own figures, so only this student's repo can score.
+    const right = q10 ? b.response === MY_REPO : !!b.response;
     log("graded " + b.questionId.replace("q-","").slice(0,18) + " weight " + b.weight +
-        (b.response ? "" : "  <-- EMPTY RESPONSE"));
-    return Promise.resolve(new Response(JSON.stringify({ score: b.response ? b.weight : 0 }),
-      { status: 200, headers: { "Content-Type": "application/json" } }));
+        (b.response ? (right ? "" : "  <-- WRONG REPO, scored 0") : "  <-- EMPTY RESPONSE"));
+    return Promise.resolve(new Response(JSON.stringify({
+      score: right ? b.weight : 0,
+      message: right ? "" : "Emissions value mismatch: model card has 0 kg CO2eq, expected ~ 95.584 kg CO2eq",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
   }
-  if (String(url).endsWith("/carbon-repo")) {
+
+  if (url.endsWith("/carbon-repo")) {
+    if (!url.startsWith("https://tds-ga8-shared-")) {
+      // Exactly what a student's own deployment answers: it has the handler, but
+      // no account attached to publish with.
+      log("publish sent to " + url.slice(0, 48) + "  <-- NOT THE HOSTED SERVICE");
+      return Promise.resolve(new Response(JSON.stringify({ error: "HF_NOT_CONFIGURED",
+        detail: "This deployment has no Hugging Face account attached." }),
+        { status: 503, headers: { "Content-Type": "application/json" } }));
+    }
+    if (SCENARIO === "publish-down") {
+      log("publish called, replying 502");
+      return Promise.resolve(new Response(JSON.stringify({ error: "HF_PUBLISH_FAILED",
+        detail: "429 Too Many Requests" }),
+        { status: 502, headers: { "Content-Type": "application/json" } }));
+    }
     const card = JSON.parse(opts.body).card;
     log("publish called, card line 2: " + card.split(String.fromCharCode(10))[1]);
-    return Promise.resolve(new Response(
-      JSON.stringify({ url: "https://huggingface.co/bobtehbuilder/tds-ga8-carbon-d3baa6f5a2d7" }),
+    return Promise.resolve(new Response(JSON.stringify({ url: MY_REPO }),
       { status: 200, headers: { "Content-Type": "application/json" } }));
   }
+
   return realFetch(url, opts);
 };
 
 const log = (m) => { document.getElementById("log").textContent += m + "\n"; };
 window.addEventListener("error", e => log("PAGE ERROR: " + e.message));
 window.addEventListener("unhandledrejection", e => log("UNHANDLED REJECTION: " + (e.reason && e.reason.message || e.reason)));
+log("scenario: " + SCENARIO);
 
 // The real page grades after Save; here just flip the chip so waitForScore has
 // something to observe.
@@ -75,7 +128,8 @@ window.report = () => {
     return [n.replace("q-",""), (f.value||"").slice(0,44) || "(EMPTY)"];
   });
   const empty = rows.filter(r => r[1] === "(EMPTY)").length;
-  return { filled: 10 - empty, empty, rows };
+  const q10 = document.querySelector('[name="q-modelcard-carbon-server"]').value;
+  return { scenario: SCENARIO, filled: 10 - empty, empty, q10, q10correct: q10 === MY_REPO, rows };
 };
 </script>
 </body>
